@@ -2,6 +2,7 @@ package dev.lavalink.youtube.clients;
 
 import com.sedmelluq.discord.lavaplayer.tools.ExceptionTools;
 import com.sedmelluq.discord.lavaplayer.tools.JsonBrowser;
+import com.sedmelluq.discord.lavaplayer.tools.DataFormatTools;
 import com.sedmelluq.discord.lavaplayer.tools.io.HttpClientTools;
 import com.sedmelluq.discord.lavaplayer.tools.io.HttpInterface;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
@@ -207,34 +208,24 @@ public class Web extends StreamingNonMusicClient {
     protected String extractPlaylistContinuationToken(@NotNull JsonBrowser videoList) {
         // WEB continuations seem to be slightly inconsistent.
         JsonBrowser contents = videoList.get("contents");
+
         if (!contents.isNull()) {
             videoList = contents;
         }
+
         return videoList.values()
                 .stream()
                 .filter(item -> !item.get("continuationItemRenderer").isNull())
                 .findFirst()
                 .map(item -> {
-                    JsonBrowser continuationRenderer = item.get("continuationItemRenderer");
-                    JsonBrowser continuationEndpoint = continuationRenderer.get("continuationEndpoint");
-                    // first try if token is at : // continuationEndpoint.continuationCommand.token
+                    JsonBrowser continuationEndpoint = item.get("continuationItemRenderer").get("continuationEndpoint");
                     String token = continuationEndpoint.get("continuationCommand").get("token").text();
-                    if (token != null && !token.isEmpty()) {
+                    if (!DataFormatTools.isNullOrEmpty(token)) {
                         return token;
                     }
-                    // second try if token is at :
-                    // continuationEndpoint.commandExecutorCommand.commands[1].continuationCommand.token
-                    JsonBrowser commandExecutor = continuationEndpoint.get("commandExecutorCommand");
-                    if (!commandExecutor.isNull()) {
-                        JsonBrowser commands = commandExecutor.get("commands");
-                        if (!commands.isNull() && commands.isList() && commands.values().size() > 1) {
-                            return commands.values().get(1)
-                                    .get("continuationCommand")
-                                    .get("token")
-                                    .text();
-                        }
-                    }
-                    return null;
+
+                    return continuationEndpoint.get("commandExecutorCommand").get("commands").index(1)
+                            .get("continuationCommand").get("token").text();
                 })
                 .orElse(null);
     }
@@ -265,5 +256,4 @@ public class Web extends StreamingNonMusicClient {
     public String getIdentifier() {
         return BASE_CONFIG.getName();
     }
-
 }
